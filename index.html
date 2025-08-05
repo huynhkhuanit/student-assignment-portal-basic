@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Lý Bài Tập</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Prism.js CSS - Tomorrow Night theme for dark background -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Authentication Screen -->
+    <div id="auth-screen" class="screen active">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <i class="fas fa-code auth-icon"></i>
+                    <h1>Hệ Thống Quản Lý Bài Tập</h1>
+                    <p>Nhập ID được cấp để truy cập</p>
+                </div>
+                <form id="auth-form" class="auth-form" autocomplete="off">
+                    <div class="input-group">
+                        <i class="fas fa-key"></i>
+                        <input type="text" id="user-id" placeholder="Nhập ID của bạn" required autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Đăng Nhập
+                    </button>
+                </form>
+                <div class="auth-footer">
+                    <p>Liên hệ admin để nhận ID truy cập</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="main-screen" class="screen">
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1><i class="fas fa-graduation-cap"></i> Quản Lý Bài Tập</h1>
+                    <span id="current-user" class="user-badge"></span>
+                </div>
+                <div class="header-right">
+                    <div class="daily-checkin student-only" id="daily-checkin">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Điểm danh hôm nay</span>
+                    </div>
+                    <button id="logout-btn" class="btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Đăng Xuất
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <nav class="navigation">
+            <button class="nav-btn active" data-tab="dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Tổng Quan</span>
+            </button>
+            <!-- Admin Only Navigation -->
+            <button class="nav-btn admin-only" data-tab="student-management">
+                <i class="fas fa-users"></i>
+                <span>Quản Lý Học Viên</span>
+            </button>
+            <button class="nav-btn admin-only" data-tab="exercise-management">
+                <i class="fas fa-tasks"></i>
+                <span>Quản Lý Bài Tập</span>
+            </button>
+            <button class="nav-btn admin-only" data-tab="daily-assignments">
+                <i class="fas fa-calendar-plus"></i>
+                <span>Giao Bài Hằng Ngày</span>
+            </button>
+            <!-- Student Navigation -->
+            <button class="nav-btn student-only" data-tab="coding-exercises">
+                <i class="fas fa-code"></i>
+                <span>Bài Tập Code</span>
+            </button>
+            <button class="nav-btn student-only" data-tab="quiz-exercises">
+                <i class="fas fa-question-circle"></i>
+                <span>Bài Trắc Nghiệm</span>
+            </button>
+            <button class="nav-btn" data-tab="progress">
+                <i class="fas fa-chart-line"></i>
+                <span>Tiến Độ</span>
+            </button>
+        </nav>
+
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="coding-count">0</h3>
+                            <p>Bài Code Đã Nộp</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="quiz-count">0</h3>
+                            <p>Bài Trắc Nghiệm Hoàn Thành</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="days-count">0</h3>
+                            <p>Ngày Đã Học</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="streak-count">0</h3>
+                            <p>Chuỗi Ngày Liên Tiếp</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-activity">
+                    <h2><i class="fas fa-history"></i> Hoạt Động Gần Đây</h2>
+                    <div id="recent-activities" class="activity-list">
+                        <!-- Activities will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coding Exercises Tab -->
+            <div id="coding-exercises" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-code"></i> Bài Tập Lập Trình</h2>
+                    <button id="add-coding-exercise" class="btn-primary admin-only">
+                        <i class="fas fa-plus"></i>
+                        Thêm Bài Tập
+                    </button>
+                </div>
+                <div class="exercises-container">
+                    <div id="coding-exercises-list" class="exercises-list">
+                        <!-- Coding exercises will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quiz Exercises Tab -->
+            <div id="quiz-exercises" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-question-circle"></i> Bài Trắc Nghiệm</h2>
+                    <button id="add-quiz-exercise" class="btn-primary admin-only">
+                        <i class="fas fa-plus"></i>
+                        Thêm Câu Hỏi
+                    </button>
+                </div>
+                <div class="exercises-container">
+                    <div id="quiz-exercises-list" class="exercises-list">
+                        <!-- Quiz exercises will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Student Management Tab (Admin Only) -->
+            <div id="student-management" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-users"></i> Quản Lý Học Viên</h2>
+                    <button id="add-student" class="btn-primary">
+                        <i class="fas fa-user-plus"></i>
+                        Thêm Học Viên
+                    </button>
+                </div>
+                <div class="students-container">
+                    <div id="students-list" class="students-grid">
+                        <!-- Students will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exercise Management Tab (Admin Only) -->
+            <div id="exercise-management" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-tasks"></i> Quản Lý Bài Tập</h2>
+                    <div class="admin-controls">
+                        <select id="student-select" class="student-select" autocomplete="off">
+                            <option value="">-- Chọn học viên --</option>
+                        </select>
+                        <button id="assign-coding-exercise" class="btn-primary">
+                            <i class="fas fa-code"></i>
+                            Giao Bài Code
+                        </button>
+                        <button id="assign-quiz-exercise" class="btn-primary">
+                            <i class="fas fa-question-circle"></i>
+                            Giao Bài Quiz
+                        </button>
+                    </div>
+                </div>
+                <div class="exercise-management-container">
+                    <div id="student-exercises" class="student-exercises">
+                        <!-- Student exercises will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Assignments Tab (Admin Only) -->
+            <div id="daily-assignments" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-calendar-plus"></i> Giao Bài Tập Hằng Ngày</h2>
+                    <div class="daily-controls">
+                        <input type="date" id="assignment-date" class="date-picker" value="" autocomplete="off">
+                        <button id="create-daily-assignment" class="btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Tạo Bài Tập Ngày
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="daily-assignment-container">
+                    <div class="assignment-options">
+                        <div class="option-card">
+                            <h3><i class="fas fa-code"></i> Bài Tập Lập Trình</h3>
+                            <p>Giao bài tập coding cho tất cả hoặc một số học viên</p>
+                            <button id="assign-daily-coding" class="btn-secondary">
+                                <i class="fas fa-code"></i>
+                                Giao Bài Code
+                            </button>
+                        </div>
+                        
+                        <div class="option-card">
+                            <h3><i class="fas fa-question-circle"></i> Câu Hỏi Trắc Nghiệm</h3>
+                            <p>Tạo bài kiểm tra trắc nghiệm hằng ngày</p>
+                            <button id="assign-daily-quiz" class="btn-secondary">
+                                <i class="fas fa-question-circle"></i>
+                                Giao Bài Quiz
+                            </button>
+                        </div>
+                        
+                        <div class="option-card">
+                            <h3><i class="fas fa-users"></i> Giao Cho Cả Lớp</h3>
+                            <p>Giao bài tập cho tất cả học viên cùng lúc</p>
+                            <button id="assign-to-all" class="btn-primary">
+                                <i class="fas fa-broadcast-tower"></i>
+                                Giao Cho Tất Cả
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="daily-assignments-list">
+                        <h3>Bài Tập Đã Giao Hôm Nay</h3>
+                        <div id="today-assignments" class="assignments-grid">
+                            <!-- Today's assignments will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Tab -->
+            <div id="progress" class="tab-content">
+                <div class="progress-container">
+                    <h2><i class="fas fa-chart-line"></i> Tiến Độ Học Tập</h2>
+                    <!-- Admin Progress View -->
+                    <div id="admin-progress" class="admin-only">
+                        <div class="progress-grid">
+                            <div class="progress-card">
+                                <h3>Thống Kê Tổng Quan</h3>
+                                <div id="admin-stats" class="admin-stats">
+                                    <!-- Admin stats will be populated here -->
+                                </div>
+                            </div>
+                            <div class="progress-card">
+                                <h3>Tiến Độ Học Viên</h3>
+                                <div id="students-progress" class="students-progress">
+                                    <!-- Students progress will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Student Progress View -->
+                    <div id="student-progress" class="student-only">
+                        <div class="progress-grid">
+                            <div class="progress-card">
+                                <h3>Lịch Điểm Danh</h3>
+                                <div id="attendance-calendar" class="calendar">
+                                    <!-- Calendar will be populated here -->
+                                </div>
+                            </div>
+                            <div class="progress-card">
+                                <h3>Thống Kê Theo Ngày</h3>
+                                <div id="daily-stats" class="stats-list">
+                                    <!-- Daily stats will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay">
+        <!-- Coding Exercise Modal -->
+        <div id="coding-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="coding-modal-title">Thêm Bài Tập Lập Trình</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="coding-exercise-form" class="modal-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="coding-title">Tiêu đề bài tập:</label>
+                        <input type="text" id="coding-title" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="coding-description">Mô tả:</label>
+                        <textarea id="coding-description" rows="3" autocomplete="off"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="coding-language">Ngôn ngữ lập trình:</label>
+                        <select id="coding-language" autocomplete="off">
+                            <option value="javascript">JavaScript</option>
+                            <option value="python">Python</option>
+                            <option value="java">Java</option>
+                            <option value="cpp">C++</option>
+                            <option value="c">C</option>
+                            <option value="csharp">C#</option>
+                            <option value="php">PHP</option>
+                            <option value="ruby">Ruby</option>
+                            <option value="go">Go</option>
+                            <option value="rust">Rust</option>
+                            <option value="typescript">TypeScript</option>
+                            <option value="kotlin">Kotlin</option>
+                            <option value="swift">Swift</option>
+                            <option value="sql">SQL</option>
+                            <option value="html">HTML</option>
+                            <option value="css">CSS</option>
+                            <option value="json">JSON</option>
+                            <option value="xml">XML</option>
+                            <option value="yaml">YAML</option>
+                            <option value="bash">Bash</option>
+                            <option value="powershell">PowerShell</option>
+                            <option value="markdown">Markdown</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="coding-code">Code đã hoàn thành:</label>
+                        <textarea id="coding-code" rows="10" placeholder="Paste code của bạn vào đây..." autocomplete="off"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="coding-notes">Ghi chú:</label>
+                        <textarea id="coding-notes" rows="3" autocomplete="off"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-close">Hủy</button>
+                        <button type="submit" class="btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quiz Exercise Modal -->
+        <div id="quiz-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="quiz-modal-title">Thêm Câu Hỏi Trắc Nghiệm</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="quiz-exercise-form" class="modal-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="quiz-question">Câu hỏi:</label>
+                        <textarea id="quiz-question" rows="3" required autocomplete="off"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Các đáp án:</label>
+                        <div class="quiz-options">
+                            <div class="option-group">
+                                <input type="radio" name="correct-answer" value="0" id="option-0" autocomplete="off">
+                                <input type="text" id="option-text-0" placeholder="Đáp án A" required autocomplete="off">
+                            </div>
+                            <div class="option-group">
+                                <input type="radio" name="correct-answer" value="1" id="option-1" autocomplete="off">
+                                <input type="text" id="option-text-1" placeholder="Đáp án B" required autocomplete="off">
+                            </div>
+                            <div class="option-group">
+                                <input type="radio" name="correct-answer" value="2" id="option-2" autocomplete="off">
+                                <input type="text" id="option-text-2" placeholder="Đáp án C" required autocomplete="off">
+                            </div>
+                            <div class="option-group">
+                                <input type="radio" name="correct-answer" value="3" id="option-3" autocomplete="off">
+                                <input type="text" id="option-text-3" placeholder="Đáp án D" required autocomplete="off">
+                            </div>
+                        </div>
+                        <p class="form-note">Chọn radio button bên cạnh đáp án đúng</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="quiz-explanation">Giải thích (tùy chọn):</label>
+                        <textarea id="quiz-explanation" rows="3" autocomplete="off"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-close">Hủy</button>
+                        <button type="submit" class="btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Day Input Modal -->
+        <div id="day-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thêm Ngày Học Mới</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="day-form" class="modal-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="day-name">Tên ngày học:</label>
+                        <input type="text" id="day-name" placeholder="VD: Ngày 1 - Cơ bản về biến" required autocomplete="off">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-close">Hủy</button>
+                        <button type="submit" class="btn-primary">Thêm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Student Management Modal -->
+        <div id="student-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="student-modal-title">Thêm Học Viên Mới</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="student-form" class="modal-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="student-id">ID Học Viên:</label>
+                        <input type="text" id="student-id" placeholder="VD: HV2024_001" required autocomplete="off">
+                        <p class="form-note">ID này sẽ được cung cấp cho học viên để đăng nhập</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-name">Tên Học Viên:</label>
+                        <input type="text" id="student-name" placeholder="Họ và tên" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="student-email">Email (tùy chọn):</label>
+                        <input type="email" id="student-email" placeholder="email@example.com" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="student-notes">Ghi chú:</label>
+                        <textarea id="student-notes" rows="3" placeholder="Thông tin thêm về học viên" autocomplete="off"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-close">Hủy</button>
+                        <button type="submit" class="btn-primary">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Exercise Assignment Modal -->
+        <div id="assignment-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="assignment-modal-title">Giao Bài Tập</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <form id="assignment-form" class="modal-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="assignment-students">Chọn học viên:</label>
+                        <div id="assignment-students" class="students-checkbox-group">
+                            <!-- Students checkboxes will be populated here -->
+                        </div>
+                        <div class="students-actions">
+                            <button type="button" id="select-all-students" class="btn-small">Chọn tất cả</button>
+                            <button type="button" id="deselect-all-students" class="btn-small">Bỏ chọn tất cả</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="assignment-title">Tiêu đề bài tập:</label>
+                        <input type="text" id="assignment-title" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="assignment-description">Mô tả/Yêu cầu:</label>
+                        <textarea id="assignment-description" rows="4" required autocomplete="off"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="assignment-optional" class="assignment-checkbox">
+                            Bài tập không bắt buộc (tùy chọn)
+                        </label>
+                        <p class="form-note">Học viên có thể bỏ qua bài này mà không ảnh hưởng điểm số</p>
+                    </div>
+                    
+                    <div class="form-group" id="assignment-code-group">
+                        <label>
+                            <input type="checkbox" id="enable-coding" class="assignment-checkbox">
+                            Thêm bài tập lập trình
+                        </label>
+                        <div id="coding-content" class="content-section" style="display: none;">
+                            <label for="assignment-code">Code mẫu/Template:</label>
+                            <textarea id="assignment-code" rows="6" placeholder="// Code mẫu hoặc template cho học viên" autocomplete="off"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" id="assignment-quiz-group">
+                        <label>
+                            <input type="checkbox" id="enable-quiz" class="assignment-checkbox">
+                            Thêm câu hỏi trắc nghiệm
+                        </label>
+                        <div id="quiz-content" class="content-section" style="display: none;">
+                            <div class="form-group">
+                                <label for="assignment-question">Câu hỏi:</label>
+                                <textarea id="assignment-question" rows="3" autocomplete="off"></textarea>
+                            </div>
+                            <div class="quiz-options">
+                                <div class="option-group">
+                                    <input type="radio" name="assignment-correct" value="0" id="assignment-option-0" autocomplete="off">
+                                    <input type="text" id="assignment-option-text-0" placeholder="Đáp án A" autocomplete="off">
+                                </div>
+                                <div class="option-group">
+                                    <input type="radio" name="assignment-correct" value="1" id="assignment-option-1" autocomplete="off">
+                                    <input type="text" id="assignment-option-text-1" placeholder="Đáp án B" autocomplete="off">
+                                </div>
+                                <div class="option-group">
+                                    <input type="radio" name="assignment-correct" value="2" id="assignment-option-2" autocomplete="off">
+                                    <input type="text" id="assignment-option-text-2" placeholder="Đáp án C" autocomplete="off">
+                                </div>
+                                <div class="option-group">
+                                    <input type="radio" name="assignment-correct" value="3" id="assignment-option-3" autocomplete="off">
+                                    <input type="text" id="assignment-option-text-3" placeholder="Đáp án D" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="assignment-explanation">Giải thích:</label>
+                                <textarea id="assignment-explanation" rows="2" autocomplete="off"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="assignment-deadline">Hạn nộp (tùy chọn):</label>
+                        <input type="datetime-local" id="assignment-deadline" autocomplete="off">
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-close">Hủy</button>
+                        <button type="submit" class="btn-primary">Giao Bài</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prism.js JavaScript with language autoloader -->
+    <script>
+        // Configure Prism before loading
+        window.Prism = window.Prism || {};
+        window.Prism.manual = true; // Disable automatic highlighting
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        // Configure autoloader after Prism is loaded
+        if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+            window.Prism.plugins.autoloader.languages_path = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/';
+        }
+    </script>
+    
+    <script src="script.js"></script>
+</body>
+</html>

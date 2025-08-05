@@ -1,0 +1,73 @@
+# Cấu hình GitHub Pages
+title: "Hệ Thống Quản Lý Bài Tập Học Viên"
+description: "Hệ thống quản lý bài tập trực tuyến toàn diện với kiểm soát quyền truy cập theo vai trò"
+url: "https://huynhkhuanit.github.io"
+baseurl: "/student-assignment-portal-basic"
+
+# Repository
+repository: "huynhkhuanit/student-assignment-portal-basic"
+
+# Tác giả
+author:
+  name: "huynhkhuanit"
+  email: "huynhkhuanit@gmail.com"
+  url: "https://github.com/huynhkhuanit"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - .gitignore
+  - README.md
+
+# Include files
+include:
+  - _pages
+
+# SEO settings
+lang: vi
+locale: vi_VN
+
+# Mạng xã hội
+social:
+  name: "Hệ Thống Quản Lý Bài Tập Học Viên"
+  links:
+    - "https://github.com/huynhkhuanit/student-assignment-portal-basic"
+
+# Google Analytics (optional)
+# google_analytics: UA-NNNNNNNN-N
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:name/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: "post"
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: "doc"

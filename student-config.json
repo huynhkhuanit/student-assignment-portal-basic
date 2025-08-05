@@ -1,0 +1,26 @@
+{
+  "students": [
+    {
+      "id": "THUTHAO_CPP",
+      "name": "Nguyễn Thu Thảo",
+      "email": "thuthao792006@gmail.com",
+      "class": "Lớp C++ cơ bản đến nâng cao",
+      "notes": "Học viên chăm chỉ",
+      "active": true
+    }
+  ],
+  "classes": [
+    "Lớp Web Development",
+    "Lớp JavaScript Basic", 
+    "Lớp React Advanced",
+    "Lớp HTML/CSS",
+    "Lớp C++ cơ bản đến nâng cao",
+    "Nhóm A - Full Stack"
+  ],
+  "config": {
+    "autoCreateDemo": true,
+    "requireEmail": false,
+    "defaultClass": "Lớp Web Development",
+    "idPattern": "HV2025_###"
+  }
+}
