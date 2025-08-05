@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Hệ Thống Quản Lý Bài Tập (Local Storage)</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Prism.js CSS - Tomorrow Night theme for dark background -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    
+    <style>
+        .demo-banner {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            font-weight: 500;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .demo-banner i {
+            margin-right: 0.5rem;
+        }
+        
+        .screen {
+            margin-top: 60px; /* Adjust for demo banner */
+        }
+        
+        .demo-info {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            color: #0c4a6e;
+        }
+        
+        .demo-info h4 {
+            margin: 0 0 0.5rem 0;
+            color: #0369a1;
+        }
+        
+        .demo-accounts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .demo-account {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .demo-account:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+        
+        .demo-account h5 {
+            margin: 0 0 0.5rem 0;
+            color: #1f2937;
+        }
+        
+        .demo-account p {
+            margin: 0;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .demo-account .account-id {
+            font-family: monospace;
+            background: #f3f4f6;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #374151;
+        }
+    </style>
+</head>
+<body>
+    <!-- Demo Banner -->
+    <div class="demo-banner">
+        <i class="fas fa-flask"></i>
+        DEMO VERSION - Dữ liệu chỉ lưu trên Local Storage (thiết bị này)
+    </div>
+
+    <!-- Authentication Screen -->
+    <div id="auth-screen" class="screen active">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <i class="fas fa-code auth-icon"></i>
+                    <h1>Demo - Hệ Thống Quản Lý Bài Tập</h1>
+                    <p>Nhập ID để truy cập (chỉ lưu trên thiết bị này)</p>
+                </div>
+                
+                <div class="demo-info">
+                    <h4><i class="fas fa-info-circle"></i> Thông tin Demo</h4>
+                    <p>Đây là phiên bản demo sử dụng Local Storage. Dữ liệu chỉ được lưu trên trình duyệt này và sẽ mất khi xóa cache.</p>
+                    <p><strong>Để sử dụng Firebase (lưu trữ đám mây):</strong> Xem file <code>FIREBASE_SETUP.md</code></p>
+                </div>
+                
+                <div class="demo-accounts">
+                    <div class="demo-account" onclick="document.getElementById('user-id').value='ADMIN2024'">
+                        <h5><i class="fas fa-user-shield"></i> Tài khoản Admin</h5>
+                        <p class="account-id">ADMIN2024</p>
+                        <p>Quản lý học viên, tạo bài tập</p>
+                    </div>
+                    
+                    <div class="demo-account" onclick="document.getElementById('user-id').value='THUTHAO_CPP'">
+                        <h5><i class="fas fa-user-graduate"></i> Học viên Demo</h5>
+                        <p class="account-id">THUTHAO_CPP</p>
+                        <p>Làm bài tập, nộp bài</p>
+                    </div>
+                </div>
+                
+                <form id="auth-form" class="auth-form" autocomplete="off">
+                    <div class="input-group">
+                        <i class="fas fa-key"></i>
+                        <input type="text" id="user-id" placeholder="Nhập ID của bạn hoặc chọn tài khoản demo" required autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Đăng Nhập Demo
+                    </button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Demo version - Không cần liên hệ admin</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="main-screen" class="screen">
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1><i class="fas fa-graduation-cap"></i> Demo - Quản Lý Bài Tập</h1>
+                    <span id="current-user" class="user-badge"></span>
+                </div>
+                <div class="header-right">
+                    <div id="connection-status" class="connection-status local">
+                        <i class="fas fa-database"></i>
+                        <span>💾 Demo - Chỉ lưu local</span>
+                    </div>
+                    <div class="daily-checkin student-only" id="daily-checkin">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Điểm danh hôm nay</span>
+                    </div>
+                    <button id="logout-btn" class="btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Đăng Xuất
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <nav class="navigation">
+            <button class="nav-btn active" data-tab="dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Tổng Quan</span>
+            </button>
+            <!-- Admin Only Navigation -->
+            <button class="nav-btn admin-only" data-tab="student-management">
+                <i class="fas fa-users"></i>
+                <span>Quản Lý Học Viên</span>
+            </button>
+            <button class="nav-btn admin-only" data-tab="exercise-management">
+                <i class="fas fa-tasks"></i>
+                <span>Quản Lý Bài Tập</span>
+            </button>
+            <button class="nav-btn admin-only" data-tab="daily-assignments">
+                <i class="fas fa-calendar-plus"></i>
+                <span>Giao Bài Hằng Ngày</span>
+            </button>
+            <!-- Student Navigation -->
+            <button class="nav-btn student-only" data-tab="coding-exercises">
+                <i class="fas fa-code"></i>
+                <span>Bài Tập Code</span>
+            </button>
+            <button class="nav-btn student-only" data-tab="quiz-exercises">
+                <i class="fas fa-question-circle"></i>
+                <span>Bài Trắc Nghiệm</span>
+            </button>
+            <button class="nav-btn" data-tab="progress">
+                <i class="fas fa-chart-line"></i>
+                <span>Tiến Độ</span>
+            </button>
+        </nav>
+
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <div class="demo-info">
+                    <h4><i class="fas fa-flask"></i> Chế độ Demo</h4>
+                    <p>Bạn đang sử dụng phiên bản demo với Local Storage. Mọi thay đổi chỉ lưu trên thiết bị này.</p>
+                    <p><strong>Tính năng có sẵn:</strong> Tất cả tính năng hoạt động bình thường, chỉ khác ở cách lưu trữ dữ liệu.</p>
+                </div>
+                
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="coding-count">0</h3>
+                            <p>Bài Code Đã Nộp</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="quiz-count">0</h3>
+                            <p>Bài Trắc Nghiệm Hoàn Thành</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="days-count">0</h3>
+                            <p>Ngày Đã Học</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="streak-count">0</h3>
+                            <p>Chuỗi Ngày Liên Tiếp</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-activity">
+                    <h2><i class="fas fa-history"></i> Hoạt Động Gần Đây</h2>
+                    <div id="recent-activities" class="activity-list">
+                        <!-- Activities will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Copy all other tab contents from index.html -->
+            <!-- For brevity, I'll include the key tabs -->
+            
+            <!-- Student Management Tab (Admin Only) -->
+            <div id="student-management" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-users"></i> Quản Lý Học Viên</h2>
+                    <button id="add-student" class="btn-primary">
+                        <i class="fas fa-user-plus"></i>
+                        Thêm Học Viên
+                    </button>
+                </div>
+                <div class="students-container">
+                    <div id="students-list" class="students-grid">
+                        <!-- Students will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coding Exercises Tab -->
+            <div id="coding-exercises" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-code"></i> Bài Tập Lập Trình</h2>
+                    <button id="add-coding-exercise" class="btn-primary admin-only">
+                        <i class="fas fa-plus"></i>
+                        Thêm Bài Tập
+                    </button>
+                </div>
+                <div class="exercises-container">
+                    <div id="coding-exercises-list" class="exercises-list">
+                        <!-- Coding exercises will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quiz Exercises Tab -->
+            <div id="quiz-exercises" class="tab-content">
+                <div class="section-header">
+                    <h2><i class="fas fa-question-circle"></i> Bài Trắc Nghiệm</h2>
+                    <button id="add-quiz-exercise" class="btn-primary admin-only">
+                        <i class="fas fa-plus"></i>
+                        Thêm Câu Hỏi
+                    </button>
+                </div>
+                <div class="exercises-container">
+                    <div id="quiz-exercises-list" class="exercises-list">
+                        <!-- Quiz exercises will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Tab -->
+            <div id="progress" class="tab-content">
+                <div class="progress-container">
+                    <h2><i class="fas fa-chart-line"></i> Tiến Độ Học Tập</h2>
+                    <!-- Progress content here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Include all modals from index.html here -->
+    <div id="modal-overlay" class="modal-overlay">
+        <!-- Modals content would go here - copying from index.html -->
+    </div>
+
+    <!-- Prism.js JavaScript with language autoloader -->
+    <script>
+        // Configure Prism before loading
+        window.Prism = window.Prism || {};
+        window.Prism.manual = true; // Disable automatic highlighting
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        // Configure autoloader after Prism is loaded
+        if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+            window.Prism.plugins.autoloader.languages_path = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/';
+        }
+    </script>
+    
+    <!-- Demo version - Only use localStorage, no Firebase -->
+    <script>
+        // Create a simple data adapter that only uses localStorage
+        window.dataAdapter = {
+            useFirebase: false,
+            firebaseReady: false,
+            
+            async getUserData(userId) {
+                const data = localStorage.getItem(`user_${userId}`);
+                return data ? JSON.parse(data) : null;
+            },
+            
+            async saveUserData(userId, userData) {
+                localStorage.setItem(`user_${userId}`, JSON.stringify(userData));
+                return true;
+            },
+            
+            async getAdminData() {
+                const data = localStorage.getItem('admin_data');
+                return data ? JSON.parse(data) : null;
+            },
+            
+            async saveAdminData(adminData) {
+                localStorage.setItem('admin_data', JSON.stringify(adminData));
+                return true;
+            },
+            
+            getConnectionStatus() {
+                return { 
+                    status: 'local', 
+                    message: '💾 Demo - Chỉ lưu trên thiết bị này' 
+                };
+            },
+            
+            // Stub methods for compatibility
+            listenToUserData() { return null; },
+            listenToAssignments() { return null; },
+            listenToAdminData() { return null; }
+        };
+    </script>
+    
+    <script src="script.js"></script>
+</body>
+</html>

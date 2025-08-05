@@ -294,6 +294,32 @@ body {
     gap: 1rem;
 }
 
+/* Connection Status */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--success-color);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.connection-status.offline {
+    background: var(--warning-color);
+}
+
+.connection-status.local {
+    background: var(--text-muted);
+}
+
+.connection-status i {
+    font-size: 0.9rem;
+}
+
 .daily-checkin {
     background: var(--success-color);
     color: white;

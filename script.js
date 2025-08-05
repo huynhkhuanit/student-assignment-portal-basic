@@ -11,6 +11,7 @@ class ExerciseManager {
         this.selectedStudent = null;
         this.assignmentType = null;
         this.editingStudent = null; // For editing student mode
+        this.dataAdapter = null; // Will be initialized after dataAdapter is loaded
         
         // Admin credentials - you can change this
         this.adminIds = ['ADMIN2024', 'ADMIN123', 'GIAOVIEN'];
@@ -18,11 +19,72 @@ class ExerciseManager {
         this.init();
     }
 
-    init() {
+    async init() {
         this.bindEvents();
+        await this.initializeDataAdapter();
         this.checkExistingSession();
         this.initializeData();
         this.initializePrismConfig();
+        this.setupConnectionStatusUpdate();
+    }
+
+    async initializeDataAdapter() {
+        // Wait for dataAdapter to be loaded
+        const waitForAdapter = () => {
+            return new Promise((resolve) => {
+                const checkAdapter = () => {
+                    if (window.dataAdapter) {
+                        this.dataAdapter = window.dataAdapter;
+                        resolve();
+                    } else {
+                        setTimeout(checkAdapter, 100);
+                    }
+                };
+                checkAdapter();
+            });
+        };
+        
+        await waitForAdapter();
+        console.log('✅ Data adapter initialized');
+    }
+
+    setupConnectionStatusUpdate() {
+        const statusElement = document.getElementById('connection-status');
+        if (!statusElement) return;
+
+        const updateStatus = () => {
+            const status = this.dataAdapter.getConnectionStatus();
+            const icon = statusElement.querySelector('i');
+            const text = statusElement.querySelector('span');
+            
+            // Remove existing status classes
+            statusElement.className = 'connection-status';
+            
+            switch(status.status) {
+                case 'online':
+                    statusElement.classList.add('online');
+                    icon.className = 'fas fa-cloud';
+                    break;
+                case 'offline':
+                    statusElement.classList.add('offline');
+                    icon.className = 'fas fa-wifi';
+                    break;
+                case 'local':
+                    statusElement.classList.add('local');
+                    icon.className = 'fas fa-database';
+                    break;
+            }
+            
+            text.textContent = status.message;
+        };
+
+        // Update status immediately and then every 5 seconds
+        updateStatus();
+        setInterval(updateStatus, 5000);
+
+        // Also update on online/offline events
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
     }
 
     // Event Binding
@@ -81,12 +143,12 @@ class ExerciseManager {
     }
 
     // Authentication Methods
-    checkExistingSession() {
+    async checkExistingSession() {
         const savedUser = localStorage.getItem('currentUser');
         if (savedUser) {
             this.currentUser = savedUser;
             this.userRole = this.determineUserRole(savedUser);
-            this.showMainScreen();
+            await this.showMainScreen();
         }
     }
 
@@ -94,7 +156,7 @@ class ExerciseManager {
         return this.adminIds.includes(userId) ? 'admin' : 'student';
     }
 
-    handleLogin(e) {
+    async handleLogin(e) {
         e.preventDefault();
         const userId = document.getElementById('user-id').value.trim();
         
@@ -114,7 +176,8 @@ class ExerciseManager {
         
         // If student, check if ID is valid (created by admin)
         if (this.userRole === 'student') {
-            if (!this.isValidStudentId(userId)) {
+            const isValid = await this.isValidStudentId(userId);
+            if (!isValid) {
                 this.showError('ID không hợp lệ. Vui lòng liên hệ admin để được cấp ID.');
                 return;
             }
@@ -122,16 +185,16 @@ class ExerciseManager {
 
         this.currentUser = userId;
         localStorage.setItem('currentUser', userId);
-        this.initializeUserData();
-        this.showMainScreen();
+        await this.initializeUserData();
+        await this.showMainScreen();
         
         if (this.userRole === 'student') {
-            this.handleDailyCheckin();
+            await this.handleDailyCheckin();
         }
     }
 
-    isValidStudentId(studentId) {
-        const adminData = this.getAdminData();
+    async isValidStudentId(studentId) {
+        const adminData = await this.getAdminData();
         if (!adminData || !adminData.students) {
             return false;
         }
@@ -154,7 +217,7 @@ class ExerciseManager {
         document.getElementById('user-id').value = '';
     }
 
-    showMainScreen() {
+    async showMainScreen() {
         document.getElementById('auth-screen').classList.remove('active');
         document.getElementById('main-screen').classList.add('active');
         document.getElementById('current-user').textContent = this.currentUser;
@@ -162,12 +225,12 @@ class ExerciseManager {
         // Set role-based UI
         this.setupRoleBasedUI();
         
-        this.loadDashboard();
+        await this.loadDashboard();
         if (this.userRole === 'student') {
-            this.loadDays();
-            this.updateDailyCheckinButton();
+            await this.loadDays();
+            await this.updateDailyCheckinButton();
         } else {
-            this.loadAdminData();
+            await this.loadAdminData();
         }
     }
 
@@ -184,12 +247,12 @@ class ExerciseManager {
     }
 
     // Data Management
-    initializeUserData() {
+    async initializeUserData() {
         if (this.userRole === 'admin') {
-            this.initializeAdminData();
-            this.loadStudentConfig();
+            await this.initializeAdminData();
+            await this.loadStudentConfig();
         } else {
-            this.initializeStudentData();
+            await this.initializeStudentData();
         }
     }
 
@@ -200,15 +263,16 @@ class ExerciseManager {
             const response = await fetch('./student-config.json');
             if (response.ok) {
                 const config = await response.json();
-                this.importStudentConfig(config);
+                await this.importStudentConfig(config);
             }
         } catch (error) {
             console.log('No external config found, using localStorage');
         }
     }
 
-    importStudentConfig(config) {
-        const adminData = this.getAdminData();
+    async importStudentConfig(config) {
+        const adminData = await this.getAdminData();
+        if (!adminData) return;
         
         // Merge students from config
         config.students.forEach(configStudent => {
@@ -233,17 +297,17 @@ class ExerciseManager {
         });
         
         adminData.systemStats.totalStudents = adminData.students.length;
-        this.saveAdminData(adminData);
+        await this.saveAdminData(adminData);
         
         // Refresh displays
         if (this.currentTab === 'student-management') {
-            this.loadStudentsList();
+            await this.loadStudentsList();
         }
-        this.loadStudentSelect();
+        await this.loadStudentSelect();
     }
 
-    initializeAdminData() {
-        const adminData = this.getAdminData();
+    async initializeAdminData() {
+        const adminData = await this.getAdminData();
         if (!adminData) {
             const initialData = {
                 students: [],
@@ -255,14 +319,14 @@ class ExerciseManager {
                 },
                 createdAt: new Date().toISOString()
             };
-            this.saveAdminData(initialData);
+            await this.saveAdminData(initialData);
             
             // Auto-create demo student for first-time admin
-            this.createDemoStudent();
+            await this.createDemoStudent();
         }
     }
 
-    createDemoStudent() {
+    async createDemoStudent() {
         const demoStudent = {
             id: 'HV2024_001',
             name: 'Học Viên Demo',
@@ -276,17 +340,23 @@ class ExerciseManager {
             }
         };
 
-        const adminData = this.getAdminData();
+        const adminData = await this.getAdminData();
+        if (!adminData.students) {
+            adminData.students = [];
+        }
         adminData.students.push(demoStudent);
-        adminData.systemStats.totalStudents = 1;
-        this.saveAdminData(adminData);
+        if (!adminData.systemStats) {
+            adminData.systemStats = { totalStudents: 0, totalAssignments: 0, totalSubmissions: 0 };
+        }
+        adminData.systemStats.totalStudents = adminData.students.length;
+        await this.saveAdminData(adminData);
 
         // Initialize demo student data
-        this.initializeNewStudentData(demoStudent.id, demoStudent);
+        await this.initializeNewStudentData(demoStudent.id, demoStudent);
     }
 
-    initializeStudentData() {
-        const userData = this.getUserData();
+    async initializeStudentData() {
+        const userData = await this.getUserData();
         
         if (!userData) {
             const initialData = {
@@ -309,39 +379,32 @@ class ExerciseManager {
                 },
                 createdAt: new Date().toISOString()
             };
-            this.saveUserData(initialData);
+            await this.saveUserData(initialData);
         }
     }
 
-    getAdminData() {
-        const data = localStorage.getItem('admin_data');
-        return data ? JSON.parse(data) : null;
+    async getAdminData() {
+        return await this.dataAdapter.getAdminData();
     }
 
-    saveAdminData(data) {
-        localStorage.setItem('admin_data', JSON.stringify(data));
+    async saveAdminData(data) {
+        return await this.dataAdapter.saveAdminData(data);
     }
 
-    getUserData() {
-        const userKey = `user_${this.currentUser}`;
-        const data = localStorage.getItem(userKey);
-        return data ? JSON.parse(data) : null;
+    async getUserData() {
+        return await this.dataAdapter.getUserData(this.currentUser);
     }
 
-    saveUserData(data) {
-        const userKey = `user_${this.currentUser}`;
-        localStorage.setItem(userKey, JSON.stringify(data));
+    async saveUserData(data) {
+        return await this.dataAdapter.saveUserData(this.currentUser, data);
     }
 
-    getStudentData(studentId) {
-        const userKey = `user_${studentId}`;
-        const data = localStorage.getItem(userKey);
-        return data ? JSON.parse(data) : null;
+    async getStudentData(studentId) {
+        return await this.dataAdapter.getUserData(studentId);
     }
 
-    saveStudentData(studentId, data) {
-        const userKey = `user_${studentId}`;
-        localStorage.setItem(userKey, JSON.stringify(data));
+    async saveStudentData(studentId, data) {
+        return await this.dataAdapter.saveUserData(studentId, data);
     }
 
     initializeData() {
@@ -364,7 +427,7 @@ class ExerciseManager {
         document.getElementById('student-id').focus();
     }
 
-    handleStudentSubmit(e) {
+    async handleStudentSubmit(e) {
         e.preventDefault();
         
         const formData = {
@@ -379,10 +442,17 @@ class ExerciseManager {
             return;
         }
 
-        const adminData = this.getAdminData();
+        const adminData = await this.getAdminData();
+        if (!adminData) {
+            this.showError('Không thể tải dữ liệu admin');
+            return;
+        }
         
         if (this.editingStudent) {
             // Edit mode - update existing student
+            if (!adminData.students) {
+                adminData.students = [];
+            }
             const studentIndex = adminData.students.findIndex(s => s.id === this.editingStudent.id);
             if (studentIndex === -1) {
                 this.showError('Không tìm thấy học viên để cập nhật');
@@ -398,10 +468,10 @@ class ExerciseManager {
                 updatedAt: new Date().toISOString()
             };
             
-            this.saveAdminData(adminData);
+            await this.saveAdminData(adminData);
             this.closeModal();
-            this.loadStudentsList();
-            this.loadStudentSelect();
+            await this.loadStudentsList();
+            await this.loadStudentSelect();
             this.showSuccess(`Đã cập nhật thông tin học viên ${formData.name}`);
             
             // Reset editing mode
@@ -409,6 +479,10 @@ class ExerciseManager {
             
         } else {
             // Add mode - create new student
+            if (!adminData.students) {
+                adminData.students = [];
+            }
+            
             // Check if ID already exists
             if (adminData.students.some(student => student.id === formData.id)) {
                 this.showError('ID này đã tồn tại');
@@ -427,20 +501,23 @@ class ExerciseManager {
 
             // Add student to admin data
             adminData.students.push(studentData);
+            if (!adminData.systemStats) {
+                adminData.systemStats = { totalStudents: 0, totalAssignments: 0, totalSubmissions: 0 };
+            }
             adminData.systemStats.totalStudents = adminData.students.length;
-            this.saveAdminData(adminData);
+            await this.saveAdminData(adminData);
 
             // Initialize student data
-            this.initializeNewStudentData(studentData.id, studentData);
+            await this.initializeNewStudentData(studentData.id, studentData);
 
             this.closeModal();
-            this.loadStudentsList();
-            this.loadStudentSelect();
+            await this.loadStudentsList();
+            await this.loadStudentSelect();
             this.showSuccess(`Đã thêm học viên ${studentData.name} (${studentData.id})`);
         }
     }
 
-    initializeNewStudentData(studentId, profile) {
+    async initializeNewStudentData(studentId, profile) {
         const initialData = {
             codingExercises: {},
             quizExercises: {},
@@ -461,25 +538,27 @@ class ExerciseManager {
             },
             createdAt: profile.createdAt
         };
-        this.saveStudentData(studentId, initialData);
+        await this.saveStudentData(studentId, initialData);
     }
 
-    loadStudentsList() {
-        const adminData = this.getAdminData();
+    async loadStudentsList() {
+        const adminData = await this.getAdminData();
         const container = document.getElementById('students-list');
         
-        if (!adminData.students.length) {
+        if (!adminData || !adminData.students || !adminData.students.length) {
             container.innerHTML = '<p class="text-center text-muted">Chưa có học viên nào</p>';
             return;
         }
 
-        container.innerHTML = adminData.students.map(student => {
-            const studentData = this.getStudentData(student.id);
-            const totalAssignments = studentData ? 
-                (studentData.assignments.coding.length + studentData.assignments.quiz.length) : 0;
-            const attendanceDays = studentData ? studentData.attendance.length : 0;
+        // Process student data asynchronously
+        const studentCards = [];
+        for (const student of adminData.students) {
+            const studentData = await this.getStudentData(student.id);
+            const totalAssignments = studentData && studentData.assignments ? 
+                ((studentData.assignments.coding || []).length + (studentData.assignments.quiz || []).length) : 0;
+            const attendanceDays = studentData && studentData.attendance ? studentData.attendance.length : 0;
 
-            return `
+            studentCards.push(`
                 <div class="student-card fade-in">
                     <div class="student-card-header">
                         <div>
@@ -511,24 +590,32 @@ class ExerciseManager {
                         </button>
                     </div>
                 </div>
-            `;
-        }).join('');
+            `);
+        }
+
+        container.innerHTML = studentCards.join('');
+
+
     }
 
-    loadStudentSelect() {
-        const adminData = this.getAdminData();
+    async loadStudentSelect() {
+        const adminData = await this.getAdminData();
         const select = document.getElementById('student-select');
         
         if (!select) return;
         
         select.innerHTML = '<option value="">-- Chọn học viên --</option>';
-        adminData.students.forEach(student => {
-            select.innerHTML += `<option value="${student.id}">${student.name} (${student.id})</option>`;
-        });
+        if (adminData && adminData.students) {
+            adminData.students.forEach(student => {
+                select.innerHTML += `<option value="${student.id}">${student.name} (${student.id})</option>`;
+            });
+        }
     }
 
-    deleteStudent(studentId) {
-        const adminData = this.getAdminData();
+    async deleteStudent(studentId) {
+        const adminData = await this.getAdminData();
+        if (!adminData || !adminData.students) return;
+        
         const student = adminData.students.find(s => s.id === studentId);
         
         if (!student) return;
@@ -537,20 +624,25 @@ class ExerciseManager {
             // Remove from admin data
             adminData.students = adminData.students.filter(s => s.id !== studentId);
             adminData.systemStats.totalStudents = adminData.students.length;
-            this.saveAdminData(adminData);
+            await this.saveAdminData(adminData);
             
             // Remove student data
             const userKey = `user_${studentId}`;
             localStorage.removeItem(userKey);
             
-            this.loadStudentsList();
-            this.loadStudentSelect();
+            await this.loadStudentsList();
+            await this.loadStudentSelect();
             this.showSuccess(`Đã xóa học viên ${student.name}`);
         }
     }
 
-    editStudent(studentId) {
-        const adminData = this.getAdminData();
+    async editStudent(studentId) {
+        const adminData = await this.getAdminData();
+        if (!adminData || !adminData.students) {
+            this.showError('Không thể tải dữ liệu admin');
+            return;
+        }
+        
         const student = adminData.students.find(s => s.id === studentId);
         
         if (!student) {
@@ -578,9 +670,13 @@ class ExerciseManager {
         this.editingStudent = student;
     }
 
-    viewStudentProgress(studentId) {
-        const studentData = this.getStudentData(studentId);
-        const adminData = this.getAdminData();
+    async viewStudentProgress(studentId) {
+        const studentData = await this.getStudentData(studentId);
+        const adminData = await this.getAdminData();
+        if (!adminData || !adminData.students) {
+            this.showError('Không thể tải dữ liệu admin');
+            return;
+        }
         const student = adminData.students.find(s => s.id === studentId);
         
         if (!student || !studentData) {
@@ -588,13 +684,15 @@ class ExerciseManager {
             return;
         }
         
-        // Calculate statistics
-        const totalCodingAssignments = studentData.assignments.coding.length;
-        const completedCodingAssignments = studentData.assignments.coding.filter(a => a.status === 'submitted' || a.status === 'graded').length;
-        const totalQuizAssignments = studentData.assignments.quiz.length;
-        const completedQuizAssignments = studentData.assignments.quiz.filter(a => a.status === 'submitted' || a.status === 'graded').length;
-        const attendanceDays = studentData.attendance.length;
-        const streak = this.calculateStreak(studentData.attendance);
+        // Calculate statistics with null checks
+        const totalCodingAssignments = studentData.assignments && studentData.assignments.coding ? studentData.assignments.coding.length : 0;
+        const completedCodingAssignments = studentData.assignments && studentData.assignments.coding ? 
+            studentData.assignments.coding.filter(a => a.status === 'submitted' || a.status === 'graded').length : 0;
+        const totalQuizAssignments = studentData.assignments && studentData.assignments.quiz ? studentData.assignments.quiz.length : 0;
+        const completedQuizAssignments = studentData.assignments && studentData.assignments.quiz ? 
+            studentData.assignments.quiz.filter(a => a.status === 'submitted' || a.status === 'graded').length : 0;
+        const attendanceDays = studentData.attendance ? studentData.attendance.length : 0;
+        const streak = studentData.attendance ? this.calculateStreak(studentData.attendance) : 0;
         
         // Show progress in alert for now (can be improved with a modal later)
         const progressInfo = `
@@ -666,12 +764,12 @@ ID: ${student.id}
         }
     }
 
-    handleStudentSelect(e) {
+    async handleStudentSelect(e) {
         this.selectedStudent = e.target.value;
-        this.loadStudentExercises();
+        await this.loadStudentExercises();
     }
 
-    handleAssignmentSubmit(e) {
+    async handleAssignmentSubmit(e) {
         e.preventDefault();
         
         // Get selected students
@@ -703,7 +801,7 @@ ID: ${student.id}
 
         let assignmentCount = 0;
 
-        selectedStudents.forEach(studentId => {
+        for (const studentId of selectedStudents) {
             const baseAssignment = {
                 id: `${Date.now()}_${studentId}_${Math.random().toString(36).substr(2, 9)}`,
                 title,
@@ -723,9 +821,12 @@ ID: ${student.id}
                     language: 'javascript' // Default language for assignments
                 };
                 
-                const studentData = this.getStudentData(studentId);
+                const studentData = await this.getStudentData(studentId);
+                if (!studentData.assignments) {
+                    studentData.assignments = { coding: [], quiz: [] };
+                }
                 studentData.assignments.coding.push(codingAssignment);
-                this.saveStudentData(studentId, studentData);
+                await this.saveStudentData(studentId, studentData);
                 assignmentCount++;
             }
 
@@ -750,45 +851,56 @@ ID: ${student.id}
                         explanation: document.getElementById('assignment-explanation').value.trim()
                     };
                     
-                    const studentData = this.getStudentData(studentId);
+                    const studentData = await this.getStudentData(studentId);
+                    if (!studentData.assignments) {
+                        studentData.assignments = { coding: [], quiz: [] };
+                    }
                     studentData.assignments.quiz.push(quizAssignment);
-                    this.saveStudentData(studentId, studentData);
+                    await this.saveStudentData(studentId, studentData);
                     assignmentCount++;
                 } else if (enableQuiz) {
                     console.warn(`Bỏ qua quiz assignment cho ${studentId} do thiếu thông tin`);
                 }
             }
-        });
+        }
 
         // Update admin stats
-        const adminData = this.getAdminData();
+        const adminData = await this.getAdminData();
+        if (!adminData.systemStats) {
+            adminData.systemStats = { totalStudents: 0, totalAssignments: 0, totalSubmissions: 0 };
+        }
         adminData.systemStats.totalAssignments += assignmentCount;
-        this.saveAdminData(adminData);
+        await this.saveAdminData(adminData);
 
         this.closeModal();
         
         // Refresh appropriate views
         if (this.isDailyAssignment) {
-            this.loadTodayAssignments();
+            await this.loadTodayAssignments();
         } else {
-            this.loadStudentExercises();
+            await this.loadStudentExercises();
         }
         
         this.showSuccess(`Đã giao ${assignmentCount} bài tập cho ${selectedStudents.length} học viên`);
     }
 
-    loadStudentExercises() {
+    async loadStudentExercises() {
         if (!this.selectedStudent) {
             document.getElementById('student-exercises').innerHTML = '<p class="text-muted">Vui lòng chọn học viên</p>';
             return;
         }
 
-        const studentData = this.getStudentData(this.selectedStudent);
+        const studentData = await this.getStudentData(this.selectedStudent);
         const container = document.getElementById('student-exercises');
         
+        if (!studentData) {
+            container.innerHTML = '<p class="text-muted">Không tìm thấy dữ liệu học viên</p>';
+            return;
+        }
+        
         const allAssignments = [
-            ...studentData.assignments.coding.map(a => ({...a, type: 'coding'})),
-            ...studentData.assignments.quiz.map(a => ({...a, type: 'quiz'}))
+            ...(studentData.assignments && studentData.assignments.coding ? studentData.assignments.coding.map(a => ({...a, type: 'coding'})) : []),
+            ...(studentData.assignments && studentData.assignments.quiz ? studentData.assignments.quiz.map(a => ({...a, type: 'quiz'})) : [])
         ].sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
 
         if (!allAssignments.length) {
@@ -913,10 +1025,15 @@ ID: ${student.id}
         return 'Hoàn thành';
     }
     
-    gradeAssignment(assignmentId, type) {
+    async gradeAssignment(assignmentId, type) {
         if (!this.selectedStudent) return;
         
-        const studentData = this.getStudentData(this.selectedStudent);
+        const studentData = await this.getStudentData(this.selectedStudent);
+        if (!studentData || !studentData.assignments || !studentData.assignments[type]) {
+            this.showError('Không tìm thấy dữ liệu bài tập');
+            return;
+        }
+        
         const assignments = studentData.assignments[type];
         const assignment = assignments.find(a => a.id === assignmentId);
         
@@ -939,89 +1056,126 @@ ID: ${student.id}
         assignment.gradedAt = new Date().toISOString();
         assignment.gradedBy = this.currentUser;
         
-        this.saveStudentData(this.selectedStudent, studentData);
-        this.loadStudentExercises();
+        await this.saveStudentData(this.selectedStudent, studentData);
+        await this.loadStudentExercises();
         this.showSuccess(`Đã chấm điểm ${numGrade}/10 cho bài "${assignment.title}"`);
     }
 
-    deleteAssignment(assignmentId, type) {
+    async deleteAssignment(assignmentId, type) {
         if (!confirm('Bạn có chắc chắn muốn xóa bài tập này?')) {
             return;
         }
 
-        const studentData = this.getStudentData(this.selectedStudent);
+        const studentData = await this.getStudentData(this.selectedStudent);
+        if (!studentData || !studentData.assignments || !studentData.assignments[type]) {
+            this.showError('Không tìm thấy dữ liệu bài tập');
+            return;
+        }
+        
         studentData.assignments[type] = studentData.assignments[type].filter(a => a.id !== assignmentId);
-        this.saveStudentData(this.selectedStudent, studentData);
+        await this.saveStudentData(this.selectedStudent, studentData);
 
-        this.loadStudentExercises();
+        await this.loadStudentExercises();
         this.showSuccess('Đã xóa bài tập');
     }
 
     // Load Admin Data
-    loadAdminData() {
-        this.loadStudentsList();
-        this.loadStudentSelect();
+    async loadAdminData() {
+        await this.loadStudentsList();
+        await this.loadStudentSelect();
     }
 
     // Dashboard
-    loadDashboard() {
+    async loadDashboard() {
         if (this.userRole === 'admin') {
-            this.loadAdminDashboard();
+            await this.loadAdminDashboard();
         } else {
-            this.loadStudentDashboard();
+            await this.loadStudentDashboard();
         }
     }
 
-    loadAdminDashboard() {
-        const adminData = this.getAdminData();
+    async loadAdminDashboard() {
+        const adminData = await this.getAdminData();
+        if (!adminData || !adminData.students) {
+            // Show empty dashboard
+            document.getElementById('coding-count').textContent = '0';
+            document.getElementById('quiz-count').textContent = '0';
+            document.getElementById('days-count').textContent = '0';
+            document.getElementById('streak-count').textContent = '0';
+            await this.loadAdminActivities();
+            return;
+        }
+        
         const students = adminData.students;
         
         let totalAssignments = 0;
         let totalSubmissions = 0;
         let totalAttendance = 0;
 
-        students.forEach(student => {
-            const studentData = this.getStudentData(student.id);
+        for (const student of students) {
+            const studentData = await this.getStudentData(student.id);
             if (studentData) {
-                totalAssignments += studentData.assignments.coding.length + studentData.assignments.quiz.length;
-                totalSubmissions += Object.values(studentData.codingExercises).reduce((acc, day) => acc + day.length, 0);
-                totalSubmissions += Object.values(studentData.quizExercises).reduce((acc, day) => acc + day.length, 0);
-                totalAttendance += studentData.attendance.length;
+                if (studentData.assignments) {
+                    totalAssignments += (studentData.assignments.coding || []).length + (studentData.assignments.quiz || []).length;
+                }
+                if (studentData.codingExercises) {
+                    totalSubmissions += Object.values(studentData.codingExercises).reduce((acc, day) => acc + (day || []).length, 0);
+                }
+                if (studentData.quizExercises) {
+                    totalSubmissions += Object.values(studentData.quizExercises).reduce((acc, day) => acc + (day || []).length, 0);
+                }
+                if (studentData.attendance) {
+                    totalAttendance += studentData.attendance.length;
+                }
             }
-        });
+        }
 
         document.getElementById('coding-count').textContent = totalSubmissions;
         document.getElementById('quiz-count').textContent = totalAssignments;
         document.getElementById('days-count').textContent = students.length;
         document.getElementById('streak-count').textContent = Math.round(totalAttendance / Math.max(students.length, 1));
 
-        this.loadAdminActivities();
+        await this.loadAdminActivities();
     }
 
-    loadStudentDashboard() {
-        const userData = this.getUserData();
+    async loadStudentDashboard() {
+        const userData = await this.getUserData();
         
-        const codingCount = Object.values(userData.codingExercises).reduce((acc, day) => acc + day.length, 0);
-        const quizCount = Object.values(userData.quizExercises).reduce((acc, day) => acc + day.length, 0);
-        const daysCount = userData.attendance.length;
-        const streakCount = this.calculateStreak(userData.attendance);
+        if (!userData) {
+            document.getElementById('coding-count').textContent = '0';
+            document.getElementById('quiz-count').textContent = '0';
+            document.getElementById('days-count').textContent = '0';
+            document.getElementById('streak-count').textContent = '0';
+            await this.loadRecentActivities();
+            return;
+        }
+        
+        const codingCount = userData.codingExercises ? Object.values(userData.codingExercises).reduce((acc, day) => acc + (day || []).length, 0) : 0;
+        const quizCount = userData.quizExercises ? Object.values(userData.quizExercises).reduce((acc, day) => acc + (day || []).length, 0) : 0;
+        const daysCount = userData.attendance ? userData.attendance.length : 0;
+        const streakCount = userData.attendance ? this.calculateStreak(userData.attendance) : 0;
 
         document.getElementById('coding-count').textContent = codingCount;
         document.getElementById('quiz-count').textContent = quizCount;
         document.getElementById('days-count').textContent = daysCount;
         document.getElementById('streak-count').textContent = streakCount;
 
-        this.loadRecentActivities();
+        await this.loadRecentActivities();
     }
 
-    loadAdminActivities() {
+    async loadAdminActivities() {
         const container = document.getElementById('recent-activities');
-        const adminData = this.getAdminData();
+        const adminData = await this.getAdminData();
+        
+        if (!adminData || !adminData.students) {
+            container.innerHTML = '<p class="text-muted text-center">Chưa có hoạt động nào</p>';
+            return;
+        }
         
         // Get recent student activities
         let allActivities = [];
-        adminData.students.forEach(student => {
-            const studentData = this.getStudentData(student.id);
+        for (const student of adminData.students) {
+            const studentData = await this.getStudentData(student.id);
             if (studentData && studentData.activities) {
                 studentData.activities.forEach(activity => {
                     allActivities.push({
@@ -1031,7 +1185,7 @@ ID: ${student.id}
                     });
                 });
             }
-        });
+        }
 
         allActivities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         const recentActivities = allActivities.slice(0, 10);
@@ -1075,11 +1229,11 @@ ID: ${student.id}
         return streak;
     }
 
-    loadRecentActivities() {
-        const userData = this.getUserData();
+    async loadRecentActivities() {
+        const userData = await this.getUserData();
         const container = document.getElementById('recent-activities');
         
-        if (!userData.activities.length) {
+        if (!userData || !userData.activities || !userData.activities.length) {
             container.innerHTML = '<p class="text-muted text-center">Chưa có hoạt động nào</p>';
             return;
         }
@@ -1108,30 +1262,38 @@ ID: ${student.id}
     }
 
     // Daily Check-in (Student Only)
-    handleDailyCheckin() {
+    async handleDailyCheckin() {
         if (this.userRole === 'admin') return;
         
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
+        if (!userData) return;
+        
         const today = new Date().toISOString().split('T')[0];
+        
+        if (!userData.attendance) {
+            userData.attendance = [];
+        }
         
         if (!userData.attendance.includes(today)) {
             userData.attendance.push(today);
-            this.addActivity('checkin', 'Điểm danh thành công', `Đã điểm danh ngày ${this.formatDate(today)}`);
-            this.saveUserData(userData);
+            await this.addActivity('checkin', 'Điểm danh thành công', `Đã điểm danh ngày ${this.formatDate(today)}`);
+            await this.saveUserData(userData);
         }
         
-        this.updateDailyCheckinButton();
-        this.loadDashboard();
+        await this.updateDailyCheckinButton();
+        await this.loadDashboard();
     }
 
-    updateDailyCheckinButton() {
+    async updateDailyCheckinButton() {
         if (this.userRole === 'admin') return;
         
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
+        if (!userData) return;
+        
         const today = new Date().toISOString().split('T')[0];
         const checkinBtn = document.getElementById('daily-checkin');
         
-        if (userData.attendance.includes(today)) {
+        if (userData.attendance && userData.attendance.includes(today)) {
             checkinBtn.classList.add('checked');
             checkinBtn.innerHTML = '<i class="fas fa-check"></i><span>Đã điểm danh</span>';
         } else {
@@ -1141,12 +1303,12 @@ ID: ${student.id}
     }
 
     // Tab Navigation
-    handleTabSwitch(e) {
+    async handleTabSwitch(e) {
         const tab = e.currentTarget.dataset.tab;
-        this.switchTab(tab);
+        await this.switchTab(tab);
     }
 
-    switchTab(tab) {
+    async switchTab(tab) {
         // Update navigation
         document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
@@ -1160,51 +1322,56 @@ ID: ${student.id}
         // Load tab-specific content
         switch (tab) {
             case 'dashboard':
-                this.loadDashboard();
+                await this.loadDashboard();
                 break;
             case 'student-management':
-                this.loadStudentsList();
+                await this.loadStudentsList();
                 break;
             case 'exercise-management':
-                this.loadStudentSelect();
-                this.loadStudentExercises();
+                await this.loadStudentSelect();
+                await this.loadStudentExercises();
                 break;
             case 'coding-exercises':
-                this.loadCodingExercises();
+                await this.loadCodingExercises();
                 break;
             case 'quiz-exercises':
-                this.loadQuizExercises();
+                await this.loadQuizExercises();
                 break;
             case 'progress':
-                this.loadProgress();
+                await this.loadProgress();
                 break;
             case 'daily-assignments':
-                this.loadDailyAssignments();
+                await this.loadDailyAssignments();
                 break;
         }
     }
 
     // Daily Assignments Methods
-    loadDailyAssignments() {
+    async loadDailyAssignments() {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('assignment-date').value = today;
-        this.loadTodayAssignments();
+        await this.loadTodayAssignments();
     }
 
-    loadTodayAssignments() {
+    async loadTodayAssignments() {
         const selectedDate = document.getElementById('assignment-date').value || new Date().toISOString().split('T')[0];
         const container = document.getElementById('today-assignments');
         
-        const adminData = this.getAdminData();
+        const adminData = await this.getAdminData();
+        if (!adminData || !adminData.students) {
+            container.innerHTML = '<p class="text-muted text-center">Chưa có bài tập nào được giao trong ngày này</p>';
+            return;
+        }
+        
         let todayAssignments = [];
         
         // Collect all assignments for the selected date
-        adminData.students.forEach(student => {
-            const studentData = this.getStudentData(student.id);
-            if (studentData) {
+        for (const student of adminData.students) {
+            const studentData = await this.getStudentData(student.id);
+            if (studentData && studentData.assignments) {
                 const allAssignments = [
-                    ...studentData.assignments.coding.map(a => ({...a, type: 'coding', studentName: student.name, studentId: student.id})),
-                    ...studentData.assignments.quiz.map(a => ({...a, type: 'quiz', studentName: student.name, studentId: student.id}))
+                    ...(studentData.assignments.coding || []).map(a => ({...a, type: 'coding', studentName: student.name, studentId: student.id})),
+                    ...(studentData.assignments.quiz || []).map(a => ({...a, type: 'quiz', studentName: student.name, studentId: student.id}))
                 ];
                 
                 const dateAssignments = allAssignments.filter(a => 
@@ -1212,7 +1379,7 @@ ID: ${student.id}
                 );
                 todayAssignments = todayAssignments.concat(dateAssignments);
             }
-        });
+        }
 
         if (!todayAssignments.length) {
             container.innerHTML = '<p class="text-muted text-center">Chưa có bài tập nào được giao trong ngày này</p>';
@@ -1241,8 +1408,8 @@ ID: ${student.id}
         `).join('');
     }
 
-    handleDateChange() {
-        this.loadTodayAssignments();
+    async handleDateChange() {
+        await this.loadTodayAssignments();
     }
 
     openDailyAssignmentModal(type) {
@@ -1286,9 +1453,9 @@ ID: ${student.id}
         checkboxes.forEach(cb => cb.checked = false);
     }
 
-    populateStudentCheckboxes() {
+    async populateStudentCheckboxes() {
         const container = document.getElementById('assignment-students');
-        const adminData = this.getAdminData();
+        const adminData = await this.getAdminData();
         
         container.innerHTML = adminData.students.map(student => `
             <div class="student-checkbox-item">
@@ -1299,8 +1466,8 @@ ID: ${student.id}
     }
 
     // Assignment Methods for Students
-    startAssignment(assignmentId, type) {
-        const userData = this.getUserData();
+    async startAssignment(assignmentId, type) {
+        const userData = await this.getUserData();
         const assignments = userData.assignments[type];
         const assignment = assignments.find(a => a.id === assignmentId);
         
@@ -1318,20 +1485,25 @@ ID: ${student.id}
         if (assignmentIndex !== -1) {
             assignments[assignmentIndex] = assignment;
         }
-        this.saveUserData(userData);
+        await this.saveUserData(userData);
         
         // Open assignment modal based on type
         if (type === 'coding') {
             this.openCodingAssignmentModal(assignment);
         } else {
-            this.openQuizAssignmentModal(assignment);
+            await this.openQuizAssignmentModal(assignment);
         }
         
-        this.addActivity('assignment', 'Bắt đầu bài tập', `Đã bắt đầu "${assignment.title}"`);
+        await this.addActivity('assignment', 'Bắt đầu bài tập', `Đã bắt đầu "${assignment.title}"`);
     }
     
-    continueAssignment(assignmentId, type) {
-        const userData = this.getUserData();
+    async continueAssignment(assignmentId, type) {
+        const userData = await this.getUserData();
+        if (!userData || !userData.assignments || !userData.assignments[type]) {
+            this.showError('Không tìm thấy dữ liệu bài tập');
+            return;
+        }
+        
         const assignments = userData.assignments[type];
         const assignment = assignments.find(a => a.id === assignmentId);
         
@@ -1355,7 +1527,7 @@ ID: ${student.id}
             const assignmentIndex = assignments.findIndex(a => a.id === assignmentId);
             if (assignmentIndex !== -1) {
                 assignments[assignmentIndex] = assignment;
-                this.saveUserData(userData);
+                await this.saveUserData(userData);
             }
         }
         
@@ -1365,7 +1537,7 @@ ID: ${student.id}
             const assignmentIndex = assignments.findIndex(a => a.id === assignmentId);
             if (assignmentIndex !== -1) {
                 assignments[assignmentIndex] = assignment;
-                this.saveUserData(userData);
+                await this.saveUserData(userData);
             }
         }
         
@@ -1373,12 +1545,17 @@ ID: ${student.id}
         if (type === 'coding') {
             this.openCodingAssignmentModal(assignment);
         } else {
-            this.openQuizAssignmentModal(assignment);
+            await this.openQuizAssignmentModal(assignment);
         }
     }
     
-    viewCodingSubmission(assignmentId) {
-        const userData = this.getUserData();
+    async viewCodingSubmission(assignmentId) {
+        const userData = await this.getUserData();
+        if (!userData || !userData.assignments || !userData.assignments.coding) {
+            this.showError('Không tìm thấy dữ liệu bài tập');
+            return;
+        }
+        
         const assignment = userData.assignments.coding.find(a => a.id === assignmentId);
         
         if (!assignment) {
@@ -1390,8 +1567,13 @@ ID: ${student.id}
         this.openCodingAssignmentModal(assignment, true); // true for readOnly mode
     }
     
-    submitAssignment(assignmentId, type) {
-        const userData = this.getUserData();
+    async submitAssignment(assignmentId, type) {
+        const userData = await this.getUserData();
+        if (!userData || !userData.assignments || !userData.assignments[type]) {
+            this.showError('Không tìm thấy dữ liệu bài tập');
+            return;
+        }
+        
         const assignments = userData.assignments[type];
         const assignment = assignments.find(a => a.id === assignmentId);
         
@@ -1422,22 +1604,26 @@ ID: ${student.id}
         if (assignmentIndex !== -1) {
             assignments[assignmentIndex] = assignment;
         }
-        this.saveUserData(userData);
+        await this.saveUserData(userData);
         
         // Reload the exercises view
         if (type === 'coding') {
-            this.loadCodingExercises();
+            await this.loadCodingExercises();
         } else {
-            this.loadQuizExercises();
+            await this.loadQuizExercises();
         }
         
-        this.addActivity('assignment', 'Nộp bài tập', `Đã nộp "${assignment.title}"`);
+        await this.addActivity('assignment', 'Nộp bài tập', `Đã nộp "${assignment.title}"`);
         this.showSuccess('Đã nộp bài thành công!');
     }
     
-    openCodingAssignmentModal(assignment, readOnly = false) {
+    async openCodingAssignmentModal(assignment, readOnly = false) {
         // Get the latest assignment data from userData
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
+        if (!userData || !userData.assignments || !userData.assignments.coding) {
+            this.showError('Không tìm thấy dữ liệu bài tập');
+            return;
+        }
         const latestAssignment = userData.assignments.coding.find(a => a.id === assignment.id) || assignment;
         
         document.getElementById('modal-overlay').classList.add('active');
@@ -1490,9 +1676,9 @@ ID: ${student.id}
         }, 100);
     }
     
-    openQuizAssignmentModal(assignment) {
+    async openQuizAssignmentModal(assignment) {
         // Get the latest assignment data from userData
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
         const latestAssignment = userData.assignments.quiz.find(a => a.id === assignment.id) || assignment;
         
         document.getElementById('modal-overlay').classList.add('active');
@@ -1560,25 +1746,31 @@ ID: ${student.id}
     }
 
     // Student Exercise Management (for student view)
-    loadDays() {
-        const userData = this.getUserData();
+    async loadDays() {
+        const userData = await this.getUserData();
+        
+        if (!userData) return;
         
         // Load coding days
         const codingSelect = document.getElementById('coding-day-select');
         if (codingSelect) {
             codingSelect.innerHTML = '<option value="">-- Chọn ngày --</option>';
-            userData.days.coding.forEach((day, index) => {
-                codingSelect.innerHTML += `<option value="${index}">${day}</option>`;
-            });
+            if (userData.days && userData.days.coding) {
+                userData.days.coding.forEach((day, index) => {
+                    codingSelect.innerHTML += `<option value="${index}">${day}</option>`;
+                });
+            }
         }
 
         // Load quiz days
         const quizSelect = document.getElementById('quiz-day-select');
         if (quizSelect) {
             quizSelect.innerHTML = '<option value="">-- Chọn ngày --</option>';
-            userData.days.quiz.forEach((day, index) => {
-                quizSelect.innerHTML += `<option value="${index}">${day}</option>`;
-            });
+            if (userData.days && userData.days.quiz) {
+                userData.days.quiz.forEach((day, index) => {
+                    quizSelect.innerHTML += `<option value="${index}">${day}</option>`;
+                });
+            }
         }
     }
 
@@ -1589,7 +1781,7 @@ ID: ${student.id}
         document.getElementById('day-name').focus();
     }
 
-    handleDaySubmit(e) {
+    async handleDaySubmit(e) {
         e.preventDefault();
         const dayName = document.getElementById('day-name').value.trim();
         
@@ -1598,38 +1790,52 @@ ID: ${student.id}
             return;
         }
 
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
+        if (!userData) return;
+        
+        if (!userData.days) {
+            userData.days = { coding: [], quiz: [] };
+        }
+        if (!userData.days[this.dayModalContext]) {
+            userData.days[this.dayModalContext] = [];
+        }
+        
         userData.days[this.dayModalContext].push(dayName);
-        this.saveUserData(userData);
+        await this.saveUserData(userData);
         
         this.closeModal();
-        this.loadDays();
-        this.addActivity('day', 'Thêm ngày học mới', `Đã thêm "${dayName}" vào ${this.dayModalContext === 'coding' ? 'bài tập lập trình' : 'bài trắc nghiệm'}`);
+        await this.loadDays();
+        await this.addActivity('day', 'Thêm ngày học mới', `Đã thêm "${dayName}" vào ${this.dayModalContext === 'coding' ? 'bài tập lập trình' : 'bài trắc nghiệm'}`);
         
         // Reset form
         document.getElementById('day-name').value = '';
     }
 
-    handleDayChange(e) {
+    async handleDayChange(e) {
         const dayIndex = e.target.value;
         const type = e.target.id.includes('coding') ? 'coding' : 'quiz';
         
         if (type === 'coding') {
-            this.loadCodingExercises();
+            await this.loadCodingExercises();
         } else {
-            this.loadQuizExercises();
+            await this.loadQuizExercises();
         }
     }
 
     // Coding Exercises (Student View)
-    loadCodingExercises() {
-        const userData = this.getUserData();
+    async loadCodingExercises() {
+        const userData = await this.getUserData();
         const container = document.getElementById('coding-exercises-list');
         
         if (!container) return;
 
+        if (!userData) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted text-center"><i class="fas fa-code"></i><br>Chưa có dữ liệu</p></div>';
+            return;
+        }
+        
         // Show all assignments for this student (always visible)
-        const assignments = userData.assignments ? userData.assignments.coding.slice().sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt)) : [];
+        const assignments = userData.assignments && userData.assignments.coding ? userData.assignments.coding.slice().sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt)) : [];
         let assignmentsHTML = '';
         
         if (assignments.length > 0) {
@@ -1834,7 +2040,7 @@ ID: ${student.id}
         this.currentAssignment = null;
     }
 
-    handleCodingExerciseSubmit(e) {
+    async handleCodingExerciseSubmit(e) {
         e.preventDefault();
         
         // Check if working on assignment
@@ -1846,15 +2052,15 @@ ID: ${student.id}
             assignment.lastUpdated = new Date().toISOString();
             
             // IMPORTANT: Update the assignment in userData.assignments array
-            const userData = this.getUserData();
+            const userData = await this.getUserData();
             const assignmentIndex = userData.assignments.coding.findIndex(a => a.id === assignment.id);
             if (assignmentIndex !== -1) {
                 userData.assignments.coding[assignmentIndex] = assignment;
             }
-            this.saveUserData(userData);
+            await this.saveUserData(userData);
             
             this.closeModal();
-            this.loadCodingExercises();
+            await this.loadCodingExercises();
             this.showSuccess('Đã lưu bài làm!');
             
             // Reset assignment flags
@@ -1877,7 +2083,7 @@ ID: ${student.id}
             return;
         }
 
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
         
         // Use a default key for personal exercises - no day selection needed
         const dayKey = 'personal_exercises';
@@ -1889,17 +2095,17 @@ ID: ${student.id}
         if (this.editingExercise !== null && this.editingDayKey) {
             // Editing existing exercise - use the original day key
             userData.codingExercises[this.editingDayKey][this.editingExercise] = exercise;
-            this.addActivity('coding', 'Cập nhật bài tập lập trình', `Đã cập nhật "${exercise.title}"`);
+            await this.addActivity('coding', 'Cập nhật bài tập lập trình', `Đã cập nhật "${exercise.title}"`);
         } else {
             // Adding new exercise - use default key
             userData.codingExercises[dayKey].push(exercise);
-            this.addActivity('coding', 'Thêm bài tập lập trình', `Đã thêm "${exercise.title}"`);
+            await this.addActivity('coding', 'Thêm bài tập lập trình', `Đã thêm "${exercise.title}"`);
         }
 
-        this.saveUserData(userData);
+        await this.saveUserData(userData);
         this.closeModal();
-        this.loadCodingExercises();
-        this.loadDashboard();
+        await this.loadCodingExercises();
+        await this.loadDashboard();
         this.showSuccess('Đã lưu bài tập thành công!');
         
         // Reset editing state
@@ -1907,8 +2113,10 @@ ID: ${student.id}
         this.editingDayKey = null;
     }
 
-    editCodingExercise(dayKey, index) {
-        const userData = this.getUserData();
+    async editCodingExercise(dayKey, index) {
+        const userData = await this.getUserData();
+        if (!userData || !userData.codingExercises || !userData.codingExercises[dayKey]) return;
+        
         const exercise = userData.codingExercises[dayKey][index];
         
         document.getElementById('coding-title').value = exercise.title;
@@ -1925,28 +2133,35 @@ ID: ${student.id}
         this.openExerciseModal('coding', true);
     }
 
-    deleteCodingExercise(dayKey, index) {
-        const userData = this.getUserData();
+    async deleteCodingExercise(dayKey, index) {
+        const userData = await this.getUserData();
+        if (!userData || !userData.codingExercises || !userData.codingExercises[dayKey]) return;
+        
         const exercise = userData.codingExercises[dayKey][index];
         
         if (confirm(`Bạn có chắc chắn muốn xóa bài tập "${exercise.title}"?`)) {
             userData.codingExercises[dayKey].splice(index, 1);
-            this.addActivity('coding', 'Xóa bài tập lập trình', `Đã xóa "${exercise.title}"`);
-            this.saveUserData(userData);
-            this.loadCodingExercises();
-            this.loadDashboard();
+            await this.addActivity('coding', 'Xóa bài tập lập trình', `Đã xóa "${exercise.title}"`);
+            await this.saveUserData(userData);
+            await this.loadCodingExercises();
+            await this.loadDashboard();
         }
     }
 
     // Quiz Exercises (Student View) - Updated for continuous learning
-    loadQuizExercises() {
-        const userData = this.getUserData();
+    async loadQuizExercises() {
+        const userData = await this.getUserData();
         const container = document.getElementById('quiz-exercises-list');
         
         if (!container) return;
 
+        if (!userData) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted text-center"><i class="fas fa-question-circle"></i><br>Chưa có dữ liệu</p></div>';
+            return;
+        }
+        
         // Show all assignments for this student (always visible)
-        const assignments = userData.assignments ? userData.assignments.quiz.slice().sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt)) : [];
+        const assignments = userData.assignments && userData.assignments.quiz ? userData.assignments.quiz.slice().sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt)) : [];
         let assignmentsHTML = '';
         
         if (assignments.length > 0) {
@@ -2138,7 +2353,7 @@ ID: ${student.id}
         this.highlightAllCodeBlocks();
     }
 
-    handleQuizExerciseSubmit(e) {
+    async handleQuizExerciseSubmit(e) {
         e.preventDefault();
         
         // Check if working on assignment
@@ -2156,15 +2371,15 @@ ID: ${student.id}
             assignment.lastUpdated = new Date().toISOString();
             
             // IMPORTANT: Update the assignment in userData.assignments array
-            const userData = this.getUserData();
+            const userData = await this.getUserData();
             const assignmentIndex = userData.assignments.quiz.findIndex(a => a.id === assignment.id);
             if (assignmentIndex !== -1) {
                 userData.assignments.quiz[assignmentIndex] = assignment;
             }
-            this.saveUserData(userData);
+            await this.saveUserData(userData);
             
             this.closeModal();
-            this.loadQuizExercises();
+            await this.loadQuizExercises();
             this.showSuccess('Đã lưu câu trả lời!');
             
             // Reset assignment flags
@@ -2206,7 +2421,7 @@ ID: ${student.id}
             timestamp: new Date().toISOString()
         };
 
-        const userData = this.getUserData();
+        const userData = await this.getUserData();
         
         // Use a default key for personal quiz exercises - no day selection needed
         const dayKey = 'personal_exercises';
@@ -2218,17 +2433,17 @@ ID: ${student.id}
         if (this.editingExercise !== null && this.editingDayKey) {
             // Editing existing exercise - use the original day key
             userData.quizExercises[this.editingDayKey][this.editingExercise] = exercise;
-            this.addActivity('quiz', 'Cập nhật câu hỏi trắc nghiệm', `Đã cập nhật câu hỏi`);
+            await this.addActivity('quiz', 'Cập nhật câu hỏi trắc nghiệm', `Đã cập nhật câu hỏi`);
         } else {
             // Adding new exercise - use default key
             userData.quizExercises[dayKey].push(exercise);
-            this.addActivity('quiz', 'Thêm câu hỏi trắc nghiệm', `Đã thêm câu hỏi mới`);
+            await this.addActivity('quiz', 'Thêm câu hỏi trắc nghiệm', `Đã thêm câu hỏi mới`);
         }
 
-        this.saveUserData(userData);
+        await this.saveUserData(userData);
         this.closeModal();
-        this.loadQuizExercises();
-        this.loadDashboard();
+        await this.loadQuizExercises();
+        await this.loadDashboard();
         this.showSuccess('Đã lưu câu hỏi thành công!');
         
         // Reset editing state
@@ -2236,8 +2451,8 @@ ID: ${student.id}
         this.editingDayKey = null;
     }
 
-    editQuizExercise(dayKey, index) {
-        const userData = this.getUserData();
+    async editQuizExercise(dayKey, index) {
+        const userData = await this.getUserData();
         const exercise = userData.quizExercises[dayKey][index];
         
         document.getElementById('quiz-question').value = exercise.question;
@@ -2256,39 +2471,39 @@ ID: ${student.id}
         this.openExerciseModal('quiz', true);
     }
 
-    deleteQuizExercise(dayKey, index) {
-        const userData = this.getUserData();
+    async deleteQuizExercise(dayKey, index) {
+        const userData = await this.getUserData();
         
         if (confirm('Bạn có chắc chắn muốn xóa câu hỏi này?')) {
             userData.quizExercises[dayKey].splice(index, 1);
-            this.addActivity('quiz', 'Xóa câu hỏi trắc nghiệm', `Đã xóa câu hỏi ${index + 1}`);
-            this.saveUserData(userData);
-            this.loadQuizExercises();
-            this.loadDashboard();
+            await this.addActivity('quiz', 'Xóa câu hỏi trắc nghiệm', `Đã xóa câu hỏi ${index + 1}`);
+            await this.saveUserData(userData);
+            await this.loadQuizExercises();
+            await this.loadDashboard();
         }
     }
 
     // Progress Tracking
-    loadProgress() {
+    async loadProgress() {
         if (this.userRole === 'admin') {
-            this.loadAdminProgress();
+            await this.loadAdminProgress();
         } else {
-            this.loadStudentProgress();
+            await this.loadStudentProgress();
         }
     }
 
-    loadAdminProgress() {
-        this.loadAdminStats();
-        this.loadStudentsProgress();
+    async loadAdminProgress() {
+        await this.loadAdminStats();
+        await this.loadStudentsProgress();
     }
 
-    loadStudentProgress() {
-        this.loadAttendanceCalendar();
-        this.loadDailyStats();
+    async loadStudentProgress() {
+        await this.loadAttendanceCalendar();
+        await this.loadDailyStats();
     }
 
-    loadAdminStats() {
-        const adminData = this.getAdminData();
+    async loadAdminStats() {
+        const adminData = await this.getAdminData();
         const container = document.getElementById('admin-stats');
         
         if (!container) return;
@@ -2297,15 +2512,15 @@ ID: ${student.id}
         let totalSubmissions = 0;
         let totalAttendance = 0;
 
-        adminData.students.forEach(student => {
-            const studentData = this.getStudentData(student.id);
+        for (const student of adminData.students) {
+            const studentData = await this.getStudentData(student.id);
             if (studentData) {
                 totalAssignments += studentData.assignments.coding.length + studentData.assignments.quiz.length;
                 totalSubmissions += Object.values(studentData.codingExercises).reduce((acc, day) => acc + day.length, 0);
                 totalSubmissions += Object.values(studentData.quizExercises).reduce((acc, day) => acc + day.length, 0);
                 totalAttendance += studentData.attendance.length;
             }
-        });
+        }
 
         container.innerHTML = `
             <div class="admin-stat-card">
@@ -2327,17 +2542,18 @@ ID: ${student.id}
         `;
     }
 
-    loadStudentsProgress() {
-        const adminData = this.getAdminData();
+    async loadStudentsProgress() {
+        const adminData = await this.getAdminData();
         const container = document.getElementById('students-progress');
         
         if (!container) return;
 
-        container.innerHTML = adminData.students.map(student => {
-            const studentData = this.getStudentData(student.id);
+        const progressHTML = [];
+        for (const student of adminData.students) {
+            const studentData = await this.getStudentData(student.id);
             
             if (!studentData) {
-                return `
+                progressHTML.push(`
                     <div class="student-progress-item">
                         <div class="student-progress-info">
                             <div class="student-progress-name">${student.name}</div>
@@ -2358,7 +2574,8 @@ ID: ${student.id}
                             </div>
                         </div>
                     </div>
-                `;
+                `);
+                continue;
             }
             
             const totalAssignments = studentData.assignments.coding.length + studentData.assignments.quiz.length;
@@ -2375,7 +2592,7 @@ ID: ${student.id}
             
             const attendance = studentData.attendance.length;
 
-            return `
+            progressHTML.push(`
                 <div class="student-progress-item">
                     <div class="student-progress-info">
                         <div class="student-progress-name">${student.name}</div>
@@ -2400,12 +2617,14 @@ ID: ${student.id}
                         </div>
                     </div>
                 </div>
-            `;
-        }).join('');
+            `);
+        }
+        
+        container.innerHTML = progressHTML.join('');
     }
 
-    loadAttendanceCalendar() {
-        const userData = this.getUserData();
+    async loadAttendanceCalendar() {
+        const userData = await this.getUserData();
         const container = document.getElementById('attendance-calendar');
         
         if (!container) return;
@@ -2450,8 +2669,8 @@ ID: ${student.id}
         container.innerHTML = calendarHTML;
     }
 
-    loadDailyStats() {
-        const userData = this.getUserData();
+    async loadDailyStats() {
+        const userData = await this.getUserData();
         const container = document.getElementById('daily-stats');
         
         if (!container) return;
@@ -2648,8 +2867,8 @@ ID: ${student.id}
     }
 
     // Activity Tracking
-    addActivity(type, title, description) {
-        const userData = this.getUserData();
+    async addActivity(type, title, description) {
+        const userData = await this.getUserData();
         userData.activities.push({
             type,
             title,
@@ -2662,7 +2881,7 @@ ID: ${student.id}
             userData.activities = userData.activities.slice(-50);
         }
         
-        this.saveUserData(userData);
+        await this.saveUserData(userData);
     }
 
     // Utility Methods
@@ -2897,5 +3116,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Make the instance globally available for onclick handlers
+window.exerciseManager = exerciseManager;
 window.exerciseManager = exerciseManager;
 window.exerciseManager = exerciseManager;

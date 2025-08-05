@@ -9,6 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Prism.js CSS - Tomorrow Night theme for dark background -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script type="module" src="firebase-config.js"></script>
 </head>
 <body>
     <!-- Authentication Screen -->
@@ -46,6 +49,10 @@
                     <span id="current-user" class="user-badge"></span>
                 </div>
                 <div class="header-right">
+                    <div id="connection-status" class="connection-status">
+                        <i class="fas fa-wifi"></i>
+                        <span>Đang kết nối...</span>
+                    </div>
                     <div class="daily-checkin student-only" id="daily-checkin">
                         <i class="fas fa-calendar-check"></i>
                         <span>Điểm danh hôm nay</span>
@@ -580,6 +587,9 @@
         }
     </script>
     
+    <!-- Firebase Service Layer -->
+    <script src="firebase-service.js"></script>
+    <script src="data-adapter.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
